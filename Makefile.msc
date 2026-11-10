@@ -1,0 +1,18 @@
+# MSVC native build via nmake (single-step compile + link)
+CL = cl
+CFLAGS = /nologo /O2 /MT /GL /DARCH_LITTLE_ENDIAN=1
+TARGET = rar2hashcat
+EXE = $(TARGET).exe
+SOURCES = $(TARGET).c base64_convert.c getopt.c
+HEADERS = $(TARGET).h base64_convert.h getopt.h
+ARTIFACTS = *.pdb *.obj *.ilk
+
+all: $(EXE)
+
+$(EXE): $(SOURCES) $(HEADERS)
+	$(CL) $(CFLAGS) /Fe$(EXE) $(SOURCES)
+
+clean:
+	del /q $(EXE) $(ARTIFACTS)
+
+.PHONY: all clean

@@ -23,11 +23,20 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#if defined(_MSC_VER)
+#include "getopt.h"
+#include <io.h>
+#else
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
 #include <stdarg.h> 
 #include "base64_convert.h"
+
+#if defined(_MSC_VER)
+#define strcasecmp stricmp
+#endif
 
 typedef uint32_t UTF32;
 typedef uint16_t UTF16;

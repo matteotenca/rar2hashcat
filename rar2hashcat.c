@@ -48,7 +48,11 @@
 #include <limits.h>
 #include <errno.h>
 #include <string.h>
+#if defined(_MSC_VER)
+#include "getopt.h"
+#else
 #include <unistd.h>
+#endif
 #include <inttypes.h>
 
 #include "rar2hashcat.h"
@@ -150,9 +154,9 @@
 
 #endif /* ftell */
 
-#ifdef __MINGW32__ // or another relevant macro for MinGW
-char *basename(char *path) {
-  char *base = strrchr(path, '\\');
+#if defined(__MINGW32__) || defined(_MSC_VER) // MinGW / MSVC
+const char *basename(const char *path) {
+  const char *base = strrchr(path, '\\');
   return base ? base + 1 : path;
 }
 
@@ -170,7 +174,7 @@ void *memmem(const void *haystack, size_t haystack_len,
   for (const char *h = haystack; haystack_len >= needle_len;
        ++h, --haystack_len) {
     if (!memcmp(h, needle, needle_len)) {
-      return h;
+      return (void *)h;
     }
   }
   return NULL;
@@ -212,8 +216,20 @@ void jtr_sha256_init(jtr_sha256_ctx *ctx, int bIs256) {
 	}
 }
 
+#if defined(_MSC_VER)
+/* MSVC byte-swap: portable explicit byte rearrangement (works on x86/x64). */
+#define JOHNSWAP(x) \
+    ((((uint32_t)(x) & 0x000000FF) << 24) | \
+     (((uint32_t)(x) & 0x0000FF00) << 16) | \
+     (((uint32_t)(x) & 0x00FF0000) >> 8)  | \
+     (((uint32_t)(x) & 0xFF000000) >> 24))
+#define JOHNSWAP64(x) \
+    ( ((((uint64_t)JOHNSWAP((uint32_t)((uint64_t)(x) & 0xFFFFFFFFU))) << 32) | \
+      (uint64_t)JOHNSWAP((uint32_t)((uint64_t)(x) >> 32))) )
+#else
 #define JOHNSWAP(x) __builtin_bswap32((x))
 #define JOHNSWAP64(x) __builtin_bswap64((x))
+#endif
 
 static const unsigned char padding[128] = { 0x80, 0 /* 0,0,0,0.... */ };
 
@@ -392,8 +408,8 @@ void jtr_sha256_update(jtr_sha256_ctx *ctx, const void *_input, int ilenlft)
 #define OUTBE64(n,b,i) *((uint64_t*)&(b[i]))=n
 #endif
 
-#define ARCH_WORD                   long
-#define is_aligned(PTR, CNT) ((((ARCH_WORD)(const void *)(PTR))&(CNT-1))==0)
+#define ARCH_WORD                   uintptr_t
+#define is_aligned(PTR, CNT) ((((uintptr_t)(const void *)(PTR))&(CNT-1))==0)
 
 void jtr_sha256_final(void *_output, jtr_sha256_ctx *ctx)
 {
@@ -711,7 +727,7 @@ static void process_file(const char *archive_name)
 		size_t unp;
 		uint8_t method;
 	} bestsize = { SIZE_MAX, SIZE_MAX };
-	char *base_aname;
+	const char *base_aname;
 	unsigned char buf[CHUNK_SIZE];
 	uint16_t archive_hdr_head_flags, file_hdr_head_flags, head_size;
 	unsigned char *pos;
@@ -1266,7 +1282,7 @@ static int ProcessExtra50(FILE *fp, uint64_t extra_size, uint64_t HeadSize, uint
 	uint32_t bytes_read=0;
 	int bytes_left=(int)extra_size;
 	unsigned char Lg2Count;
-	char *base_aname = basename(archive_name);
+	const char *base_aname = basename(archive_name);
 
    // fprintf(stderr, "in extra50 extrasize=%d\n", extra_size);
     while (1) {
@@ -1318,7 +1334,7 @@ static size_t read_rar5_header(FILE *fp, size_t CurBlockPos, uint8_t *HeaderType
 	uint64_t crypt_version, enc_flags, HeadSize;
 	uint32_t head_crc, header_bytes_read = 0, sizeof_vint;
 	uint8_t header_type, lg_2count;
-	char *base_aname = basename(archive_name);
+	const char *base_aname = basename(archive_name);
 
     if (Encrypted) {
         // The header is encrypted, so we simply find the IV from this block.

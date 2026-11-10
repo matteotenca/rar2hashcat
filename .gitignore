@@ -1,2 +1,5 @@
 rar2hashcat
 rar2hashcat.exe
+*.pdb
+*.obj
+*.ilk
