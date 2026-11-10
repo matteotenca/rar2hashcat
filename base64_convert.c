@@ -25,9 +25,14 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#ifdef _MSC_VER
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 #include <stdarg.h> 
 #include "base64_convert.h"
+#include "msvc_compat.h"
 
 typedef uint32_t UTF32;
 typedef uint16_t UTF16;
@@ -63,6 +68,7 @@ void real_error_msg(const char *file, int line,  const char *format, ...)
 #define error_msg(...) real_error_msg(__FILE__, __LINE__,  __VA_ARGS__)
 
 
+#ifndef _MSC_VER
 char *strlwr(char *s)
 {
 	unsigned char *ptr = (unsigned char *)s;
@@ -75,6 +81,7 @@ char *strlwr(char *s)
 
 	return s;
 }
+#endif
 
 void common_init(void)
 {
@@ -84,11 +91,11 @@ void common_init(void)
 
 	memset(atoi64, 0x7F, sizeof(atoi64));
 	for (pos = itoa64; pos <= &itoa64[63]; pos++)
-		atoi64[ARCH_INDEX(*pos)] = pos - itoa64;
+		atoi64[ARCH_INDEX(*pos)] = (unsigned char)(pos - itoa64);
 
 	memset(atoi16, 0x7F, sizeof(atoi16));
 	for (pos = itoa16; pos <= &itoa16[15]; pos++)
-		atoi16[ARCH_INDEX(*pos)] = pos - itoa16;
+		atoi16[ARCH_INDEX(*pos)] = (unsigned char)(pos - itoa16);
 
 	memcpy(atoi16l, atoi16, sizeof(atoi16l));
 
@@ -101,7 +108,7 @@ void common_init(void)
 
 	memset(atoi16u, 0x7F, sizeof(atoi16u));
 	for (pos = itoa16u; pos <= &itoa16u[15]; pos++)
-		atoi16u[ARCH_INDEX(*pos)] = pos - itoa16u;
+		atoi16u[ARCH_INDEX(*pos)] = (unsigned char)(pos - itoa16u);
 
 	initialized = 1;
 }
@@ -147,7 +154,7 @@ static unsigned int strlen16(const UTF16 *str)
 	return len;
 }
 
-static char *strnzcpy(char *dst, const char *src, int size)
+static char *strnzcpy(char *dst, const char *src, size_t size)
 {
 	char *dptr;
 
@@ -706,7 +713,7 @@ static void setup_mime() {
 	mime_setup=1;
 	memset(atoi64m, 0x7F, sizeof(atoi64m));
 	for (pos = itoa64m; pos <= &itoa64m[63]; pos++)
-		atoi64m[ARCH_INDEX(*pos)] = pos - itoa64m;
+		atoi64m[ARCH_INDEX(*pos)] = (char)(pos - itoa64m);
 	// passlib encoding uses . and not + BUT they mean the same thing.
 	memcpy(atoi64md, atoi64m, 0x100);
 	atoi64md[ARCH_INDEX('.')] = atoi64md[ARCH_INDEX('+')];

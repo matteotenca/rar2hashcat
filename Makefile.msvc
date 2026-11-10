@@ -1,0 +1,16 @@
+# Native Windows build with MSVC. Run from a Developer Command Prompt:
+#   nmake /f Makefile.msvc
+CFLAGS = /nologo /O2 /W3 /MT /D_CRT_SECURE_NO_WARNINGS /D_CRT_NONSTDC_NO_WARNINGS /DARCH_LITTLE_ENDIAN=1
+TARGET = rar2hashcat.exe
+OBJECTS = rar2hashcat.obj base64_convert.obj msvc_compat.obj
+
+all: $(TARGET)
+
+$(TARGET): $(OBJECTS)
+	cl $(CFLAGS) $(OBJECTS) /Fe$@
+
+.c.obj:
+	cl $(CFLAGS) /c $<
+
+clean:
+	-@del /q $(OBJECTS) $(TARGET) 2>nul

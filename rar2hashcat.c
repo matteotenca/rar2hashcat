@@ -45,14 +45,20 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <limits.h>
 #include <errno.h>
 #include <string.h>
+#ifdef _MSC_VER
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 #include <inttypes.h>
 
 #include "rar2hashcat.h"
 #include "base64_convert.h"
+#include "msvc_compat.h"
 
 
 /******************************************/
@@ -150,10 +156,10 @@
 
 #endif /* ftell */
 
-#ifdef __MINGW32__ // or another relevant macro for MinGW
-char *basename(char *path) {
-  char *base = strrchr(path, '\\');
-  return base ? base + 1 : path;
+#if defined(__MINGW32__) || defined(_MSC_VER)
+char *basename(const char *path) {
+  const char *base = strrchr(path, '\\');
+  return (char *)(base ? base + 1 : path);
 }
 
 void *memmem(const void *haystack, size_t haystack_len,
@@ -170,7 +176,7 @@ void *memmem(const void *haystack, size_t haystack_len,
   for (const char *h = haystack; haystack_len >= needle_len;
        ++h, --haystack_len) {
     if (!memcmp(h, needle, needle_len)) {
-      return h;
+      return (void *)h;
     }
   }
   return NULL;
@@ -212,8 +218,13 @@ void jtr_sha256_init(jtr_sha256_ctx *ctx, int bIs256) {
 	}
 }
 
+#ifdef _MSC_VER
+#define JOHNSWAP(x) _byteswap_ulong((x))
+#define JOHNSWAP64(x) _byteswap_uint64((x))
+#else
 #define JOHNSWAP(x) __builtin_bswap32((x))
 #define JOHNSWAP64(x) __builtin_bswap64((x))
+#endif
 
 static const unsigned char padding[128] = { 0x80, 0 /* 0,0,0,0.... */ };
 
@@ -392,7 +403,7 @@ void jtr_sha256_update(jtr_sha256_ctx *ctx, const void *_input, int ilenlft)
 #define OUTBE64(n,b,i) *((uint64_t*)&(b[i]))=n
 #endif
 
-#define ARCH_WORD                   long
+#define ARCH_WORD                   intptr_t
 #define is_aligned(PTR, CNT) ((((ARCH_WORD)(const void *)(PTR))&(CNT-1))==0)
 
 void jtr_sha256_final(void *_output, jtr_sha256_ctx *ctx)
@@ -705,7 +716,8 @@ static void process_file(const char *archive_name)
 	unsigned char marker_block[RAR3_MAGIC_SIZE];
 	unsigned char archive_hdr_block[13];
 	unsigned char file_hdr_block[40];
-	int i, count, type;
+	int i, type;
+	size_t count;
 	struct {
 		size_t pack;
 		size_t unp;
@@ -715,7 +727,7 @@ static void process_file(const char *archive_name)
 	unsigned char buf[CHUNK_SIZE];
 	uint16_t archive_hdr_head_flags, file_hdr_head_flags, head_size;
 	unsigned char *pos;
-	int diff;
+	ptrdiff_t diff;
 	int found = 0;
 	char path[PATH_BUFFER_SIZE];
 	char *gecos, *best = NULL;
@@ -992,7 +1004,7 @@ next_file_header:
 		   and then to UTF-8 (we don't support codepages here) */
 		if (file_hdr_head_flags & 0x200) {
 			UTF16 FileNameW[PATH_BUF_SIZE];
-			int Length = strlen((char*)file_name);
+			size_t Length = strlen((char*)file_name);
 
 			if (verbose) {
 				hexdump("! Encoded filenames", file_name, file_name_size);
@@ -1156,7 +1168,7 @@ next_file_header:
 			unsigned char bytes[64*1024];
 			unsigned x, to_read = 64*1024;
 			if (bytes_left < 64*1024)
-				to_read = bytes_left;
+				to_read = (unsigned)bytes_left;
 			bytes_left -= to_read;
 			if (fread(bytes, 1, to_read, fp) != to_read)
 				fprintf(stderr, "! Error while reading archive: %s\n", strerror(errno));
@@ -1260,7 +1272,7 @@ int read_vuint (FILE *fp, uint64_t *n, uint32_t *bytes_read) {
  * Process an 'extra' block of data. This is where rar5 stores the
  * encryption block.
  *************************************************************************/
-static int ProcessExtra50(FILE *fp, uint64_t extra_size, uint64_t HeadSize, uint32_t HeaderType, uint32_t CurBlockPos, const char *archive_name, int *found)
+static int ProcessExtra50(FILE *fp, uint64_t extra_size, uint64_t HeadSize, uint32_t HeaderType, size_t CurBlockPos, const char *archive_name, int *found)
 {
 	uint64_t FieldSize, FieldType, EncVersion, Flags;
 	uint32_t bytes_read=0;
@@ -1416,7 +1428,8 @@ static size_t read_rar5_header(FILE *fp, size_t CurBlockPos, uint8_t *HeaderType
 static int process_file5(const char *archive_name) {
 	unsigned char Magic[RAR5_MAGIC_SIZE], buf[CHUNK_SIZE], *pos;
 	size_t count, NextBlockPos, CurBlockPos;
-	int diff, found = 0;
+	ptrdiff_t diff;
+	int found = 0;
 	FILE *fp;
 
 	if (!(fp = fopen(archive_name, "rb"))) {
